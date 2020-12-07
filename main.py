@@ -1,26 +1,22 @@
-import os
-import uuid
+import asyncio
 from collections import OrderedDict
+from struct import pack
 import requests
 import socket
-import json
-import queue
 import threading
 import bencodepy
 import hashlib
-from urllib.parse import quote, urlencode
+from urllib.parse import urlencode
 import time
 
+meta_info = OrderedDict(bencodepy.decode_from_file('test2.torrent'))
 
-meta_info = OrderedDict(bencodepy.decode_from_file('test3.torrent'))
-
-info_hash = hashlib.sha1(bencodepy.encode(meta_info[b'info']))
+info_hash = hashlib.sha1(bencodepy.encode(meta_info[b'info'])).digest()
 
 peer_id = '-MN0001-' + str(time.time())[-12:]
 
 
 def get_torrent_size():
-
     file_size = 0
 
     if b'files' in meta_info[b'info']:
@@ -34,7 +30,7 @@ def get_torrent_size():
 
 def get_params():
     params = {
-        'info_hash': info_hash.digest(),
+        'info_hash': info_hash,
         'peer_id': peer_id,
         'port': 6881,
         'uploaded': 0,
@@ -46,29 +42,25 @@ def get_params():
     return params
 
 
-def tcp_listener():
-    # Create a TCP/IP socket
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+def generate_handshake(p_info_hash, p_peer_id):
+    protocol_id = "BitTorrent protocol"
+    len_id = str(len(protocol_id))
+    reserved = "00000000"
 
-    # Bind the socket to the port
-    server_address = ('localhost', 6881)
-    print('starting up on %s port %s' % server_address)
-    sock.bind(server_address)
-
-    # Listen for incoming connections
-    sock.listen()
-
-    while True:
-        # Wait for connections
-        print('waiting for a connection')
-
-        connection, client_address = sock.accept()
-        print('connection from', client_address)
+    return len_id + protocol_id + reserved + p_info_hash + p_peer_id
 
 
-# threading.Thread(target=tcp_listener).start()
+def send_receive_handshake(handshake, host, port):
 
-tracker_response = OrderedDict()
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.connect((host, port))
+    s.send(handshake)
+
+    data = s.recv(len(handshake))
+    s.close()
+
+    return data
+
 
 while True:
     try:
@@ -81,9 +73,12 @@ while True:
         print('Tracker timed out. Trying again in 3 seconds.')
         time.sleep(3)
 
-
 print(tracker_response.keys())
-print(tracker_response)
-print(tracker_response[b'interval'])
-print(len(tracker_response[b'peers']))
+print(tracker_response[b'peers'])
 
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+loop = asyncio.get_event_loop()
+
+# for peer in tracker_response[b'peers']:
+#     handshake = generate_handshake()
