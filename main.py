@@ -47,18 +47,23 @@ def generate_handshake(p_info_hash, p_peer_id):
     len_id = str(len(protocol_id))
     reserved = "00000000"
 
-    return len_id + protocol_id + reserved + p_info_hash + p_peer_id
+    return len_id + protocol_id + reserved + str(p_info_hash) + str(p_peer_id)
 
 
-def send_receive_handshake(handshake, host, port):
+def send_receive_handshake(p_handshake, host, port):
+
+    data = bytes()
 
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect((host, port))
-    s.send(handshake)
+    try:
+        s.connect((host, port))
+        s.send(p_handshake)
+        data = s.recv(len(p_handshake))
+        s.close()
+    except:
+        print('could not connect to ' + host)
 
-    data = s.recv(len(handshake))
-    s.close()
-
+    print(data)
     return data
 
 
@@ -80,5 +85,7 @@ sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 loop = asyncio.get_event_loop()
 
-# for peer in tracker_response[b'peers']:
-#     handshake = generate_handshake()
+handshake = generate_handshake(info_hash, peer_id).encode('utf-8')
+
+for peer in tracker_response[b'peers']:
+    threading.Thread(target=send_receive_handshake, args=(handshake, peer[b'ip'].decode('utf-8'), peer[b'port'])).start()
