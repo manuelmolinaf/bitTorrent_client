@@ -1,4 +1,5 @@
 import asyncio
+import struct
 from collections import OrderedDict
 from struct import pack
 import requests
@@ -9,7 +10,7 @@ import hashlib
 from urllib.parse import urlencode
 import time
 
-meta_info = OrderedDict(bencodepy.decode_from_file('test2.torrent'))
+meta_info = OrderedDict(bencodepy.decode_from_file('test3.torrent'))
 
 info_hash = hashlib.sha1(bencodepy.encode(meta_info[b'info'])).digest()
 
@@ -50,20 +51,22 @@ def generate_handshake(p_info_hash, p_peer_id):
     return len_id + protocol_id + reserved + str(p_info_hash) + str(p_peer_id)
 
 
-def send_receive_handshake(p_handshake, host, port):
+def peer_connection(p_handshake, host, port):
 
-    data = bytes()
+    data = bytes(68)
 
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
         s.connect((host, port))
         s.send(p_handshake)
-        data = s.recv(len(p_handshake))
-        s.close()
+        data = s.recv(68)
+
     except:
         print('could not connect to ' + host)
+        return
 
-    print(data)
+    handshake_res = tuple(struct.unpack('>B19s8x20s20s', data))
+    print(handshake_res[2])
     return data
 
 
@@ -78,14 +81,8 @@ while True:
         print('Tracker timed out. Trying again in 3 seconds.')
         time.sleep(3)
 
-print(tracker_response.keys())
-print(tracker_response[b'peers'])
-
-sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-loop = asyncio.get_event_loop()
 
 handshake = generate_handshake(info_hash, peer_id).encode('utf-8')
 
 for peer in tracker_response[b'peers']:
-    threading.Thread(target=send_receive_handshake, args=(handshake, peer[b'ip'].decode('utf-8'), peer[b'port'])).start()
+    threading.Thread(target=peer_connection, args=(handshake, peer[b'ip'].decode('utf-8'), peer[b'port'])).start()
