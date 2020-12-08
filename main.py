@@ -1,4 +1,3 @@
-import asyncio
 import struct
 from collections import OrderedDict
 from struct import pack
@@ -10,7 +9,7 @@ import hashlib
 from urllib.parse import urlencode
 import time
 
-meta_info = OrderedDict(bencodepy.decode_from_file('test3.torrent'))
+meta_info = OrderedDict(bencodepy.decode_from_file('test2.torrent'))
 
 info_hash = hashlib.sha1(bencodepy.encode(meta_info[b'info'])).digest()
 
@@ -66,7 +65,11 @@ def peer_connection(p_handshake, host, port):
         return
 
     handshake_res = tuple(struct.unpack('>B19s8x20s20s', data))
-    print(handshake_res[2])
+
+    if handshake_res[3]:
+        bitfield_length = struct.unpack('>I', bytes(s.recv(4)))[0]
+        bitfield = s.recv(bitfield_length)
+
     return data
 
 
